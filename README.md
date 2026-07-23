@@ -23,7 +23,6 @@ placeholder and must be swapped for real information:
 
 | Item | Location | Placeholder |
 |---|---|---|
-| Phone number | `index.html`, `js/chatbot.js` | `+33 1 00 00 00 00` |
 | Email | `index.html`, `js/chatbot.js` | `contact@maisonthai-paris.fr` |
 | Menu items & prices | `index.html` (`#menu`) | sample dishes |
 | Opening hours | `index.html` (`#reservation`, `#contact`), `js/chatbot.js` | sample hours |

@@ -3,8 +3,8 @@
 // Anything it can't confidently answer falls back to "call/email the restaurant"
 // instead of guessing — replace RESTAURANT_PHONE/EMAIL with real details.
 
-const RESTAURANT_PHONE = '+33100000000';
-const RESTAURANT_PHONE_DISPLAY = '+33 1 00 00 00 00';
+const RESTAURANT_PHONE = '+33755417584';
+const RESTAURANT_PHONE_DISPLAY = '+33 7 55 41 75 84';
 const RESTAURANT_EMAIL = 'contact@maisonthai-paris.fr';
 
 const FAQ = [
