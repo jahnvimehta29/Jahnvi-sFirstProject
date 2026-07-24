@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Maison Thai | Reservation Admin</title>
+<meta name="robots" content="noindex, nofollow">
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=Poppins:wght@300;400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css">
+<link rel="stylesheet" href="css/admin.css">
+</head>
+<body class="admin-body">
+  <div class="admin-wrap">
+    <h1>Maison Thai — Reservation Requests</h1>
+
+    <div id="loginView" class="admin-login">
+      <form id="loginForm">
+        <label for="adminPassword">Staff Password</label>
+        <input type="password" id="adminPassword" required autocomplete="current-password">
+        <button type="submit" class="btn btn-primary">Log in</button>
+        <p id="loginError" class="admin-error"></p>
+      </form>
+    </div>
+
+    <div id="dashView" class="admin-dash" style="display:none;">
+      <div class="admin-toolbar">
+        <button id="refreshBtn" type="button">Refresh</button>
+        <button id="logoutBtn" type="button">Log out</button>
+      </div>
+      <div id="reservationList"></div>
+    </div>
+  </div>
+  <script src="js/admin.js"></script>
+</body>
+</html>

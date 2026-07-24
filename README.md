@@ -7,8 +7,10 @@ no backend required.
 ## What's included
 
 - **Hero, About, Menu, Gallery, Reviews, Reservation, Contact** sections
-- **Reservation form** (date/time/party size) — currently client-side only,
-  see "Making the reservation form real" below
+- **Real reservation backend** — guest requests are stored in a database;
+  staff approve, reject, or counter-offer a different time from a
+  password-protected dashboard (`/admin.html`); the guest is emailed
+  automatically based on that decision. See "Reservation backend" below.
 - **Live chatbot** (`js/chatbot.js`) — rule-based FAQ bot for cuisine, veg/vegan
   options, hours, price, location, booking help; anything it doesn't recognize
   falls back to a "Call the restaurant" / "Email us" prompt instead of guessing
@@ -30,16 +32,54 @@ placeholder and must be swapped for real information:
 | Reviews | `index.html` (`#reviews`) | sample testimonials — pull real ones from TheFork/Google with permission |
 | Social links | `index.html` (`#contact`) | real Instagram/Facebook URLs |
 
-## Making the reservation form real
+## Reservation backend (real system, not a demo)
 
-Right now, submitting the form just shows an on-page confirmation message —
-nothing is sent anywhere. For production, pick one:
+**Stack:** Supabase (free Postgres database) + Netlify Functions (free
+serverless backend, already included with this host) + Resend (free
+transactional email, 100/day).
 
-1. **Formspree** (free tier, ~50 submissions/month) — no backend needed.
-   Sign up, get a form endpoint, and point the form's `action` at it.
-2. **EmailJS** — sends form data straight to an inbox via JS, free tier available.
-3. A real booking system (e.g. TheFork itself, Zenchef, or a custom backend)
-   if they want live availability instead of a "request" model.
+**How it works:**
+1. A guest submits the form → `netlify/functions/create-reservation.js`
+   stores it in Supabase with `status = 'pending'`.
+2. Staff open `/admin.html` (password-protected, not linked from the public
+   site) and see all requests. After checking real table availability, they
+   click **Approve**, **Reject**, or **Propose different time**.
+3. Approve/Reject → the guest is emailed immediately (`admin-decide.js`).
+4. Propose a different time → the guest gets an email with the new date/time
+   and **Accept** / **Decline** buttons. Clicking either opens a short
+   confirmation page (`guest-respond.js`) — only clicking the button *there*
+   actually finalizes it (`guest-confirm.js`). This two-step design stops
+   email link-scanners/prefetchers from silently accepting or declining on
+   the guest's behalf.
+
+**One-time setup (you'll create two free accounts — never send me the keys,
+paste them straight into Netlify's own environment variables):**
+
+1. **Supabase**: create a free project at supabase.com → SQL Editor → paste
+   and run `supabase/schema.sql` from this repo → copy your Project URL and
+   `service_role` key (Project Settings → API).
+2. **Resend**: create a free account at resend.com → API Keys → create one.
+   You can send from their shared test address (`onboarding@resend.dev`)
+   right away; verify the restaurant's own domain later for a professional
+   "from" address.
+3. In **Netlify** → Site configuration → Environment variables, add:
+   | Variable | Value |
+   |---|---|
+   | `SUPABASE_URL` | your Supabase Project URL |
+   | `SUPABASE_SERVICE_ROLE_KEY` | your Supabase `service_role` key (secret) |
+   | `RESEND_API_KEY` | your Resend API key (secret) |
+   | `RESEND_FROM` | e.g. `Maison Thai <onboarding@resend.dev>` |
+   | `RESTAURANT_NAME` | `Maison Thai` |
+   | `RESTAURANT_PHONE` | the real restaurant phone number |
+   | `SITE_URL` | your live site URL, e.g. `https://maison-thai-paris.netlify.app` |
+   | `ADMIN_PASSWORD` | a password you choose, for staff to log into `/admin.html` |
+4. Redeploy (Netlify → Deploys → Trigger deploy) so the functions pick up the
+   new environment variables.
+
+**Note on `/admin.html`:** it's a single shared password, not individual staff
+logins — proportionate for one small team, but worth upgrading to real
+per-person accounts if the restaurant wants an audit trail of who approved
+what.
 
 ## Hosting — free options
 

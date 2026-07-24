@@ -1,0 +1,64 @@
+function escapeHtml(str = '') {
+  return String(str).replace(/[&<>"']/g, (c) => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+  }[c]));
+}
+
+function page(title, bodyHtml) {
+  return `<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>${title}</title>
+<style>
+  body{font-family:sans-serif;background:#fdf8f2;color:#241512;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;padding:20px;}
+  .card{background:#fff;padding:40px;border-radius:14px;box-shadow:0 10px 30px rgba(36,21,18,.12);max-width:420px;text-align:center;}
+  h1{color:#7a1f2b;font-size:1.4rem;margin-top:0;}
+  button{background:#7a1f2b;color:#fff;border:none;padding:14px 28px;border-radius:50px;font-weight:600;font-size:1rem;cursor:pointer;margin-top:20px;}
+  button.decline{background:#fff;color:#7a1f2b;border:2px solid #7a1f2b;}
+</style></head><body><div class="card">${bodyHtml}</div></body></html>`;
+}
+
+exports.handler = async (event) => {
+  const { token, decision } = event.queryStringParameters || {};
+  if (!token || !['accept', 'decline'].includes(decision)) {
+    return {
+      statusCode: 400,
+      headers: { 'Content-Type': 'text/html' },
+      body: page('Invalid link', '<h1>Invalid link</h1><p>This link is missing information.</p>')
+    };
+  }
+
+  const { SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, RESTAURANT_PHONE } = process.env;
+  const phone = RESTAURANT_PHONE || '+33 7 55 41 75 84';
+
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/reservations?guest_token=eq.${token}`, {
+    headers: {
+      apikey: SUPABASE_SERVICE_ROLE_KEY,
+      Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`
+    }
+  });
+  const rows = await res.json();
+  const reservation = rows[0];
+
+  if (!reservation || reservation.status !== 'countered') {
+    return {
+      statusCode: 200,
+      headers: { 'Content-Type': 'text/html' },
+      body: page('Already handled', `<h1>This request was already handled</h1><p>If you need help, call us at ${escapeHtml(phone)}.</p>`)
+    };
+  }
+
+  const label = decision === 'accept' ? 'Confirm this new time' : 'Confirm you want to decline';
+  const detail = decision === 'accept'
+    ? `<p>We proposed <strong>${escapeHtml(reservation.proposed_date)} at ${escapeHtml(reservation.proposed_time)}</strong> for your table.</p>`
+    : `<p>You're about to decline the proposed time of <strong>${escapeHtml(reservation.proposed_date)} at ${escapeHtml(reservation.proposed_time)}</strong>.</p>`;
+
+  const body = `
+    <h1>${decision === 'accept' ? 'Confirm your new reservation time' : 'Decline proposed time'}</h1>
+    ${detail}
+    <form method="POST" action="/.netlify/functions/guest-confirm">
+      <input type="hidden" name="token" value="${escapeHtml(token)}">
+      <input type="hidden" name="decision" value="${escapeHtml(decision)}">
+      <button type="submit" class="${decision === 'decline' ? 'decline' : ''}">${label}</button>
+    </form>`;
+
+  return { statusCode: 200, headers: { 'Content-Type': 'text/html' }, body: page('Confirm your reservation', body) };
+};
