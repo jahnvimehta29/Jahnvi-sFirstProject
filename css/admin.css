@@ -16,6 +16,7 @@
 .res-card.status-approved{border-left-color:#3a8a4d;}
 .res-card.status-rejected{border-left-color:#a3323f;}
 .res-card.status-countered{border-left-color:#4a7fbf;}
+.res-card.status-cancelled{border-left-color:#8a8378;}
 
 .res-top{display:flex;justify-content:space-between;flex-wrap:wrap;gap:12px;}
 .res-contact{color:var(--gray);font-size:.85rem;margin-top:4px;}

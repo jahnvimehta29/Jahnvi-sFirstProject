@@ -71,17 +71,21 @@ exports.handler = async (event) => {
   }
 
   if (action === 'approve') {
+    const cancelToken = crypto.randomBytes(24).toString('hex');
     await fetch(`${SUPABASE_URL}/rest/v1/reservations?id=eq.${id}`, {
       method: 'PATCH',
       headers: { ...sbHeaders, Prefer: 'return=minimal' },
-      body: JSON.stringify({ status: 'approved' })
+      body: JSON.stringify({ status: 'approved', cancel_token: cancelToken })
     });
+    const base = (SITE_URL || '').replace(/\/$/, '');
+    const cancelUrl = `${base}/.netlify/functions/guest-cancel?token=${cancelToken}`;
     await sendEmail(
       `Your table is confirmed — ${restaurantName}`,
       `<p>Hi ${reservation.name},</p>
        <p>Your table for <strong>${reservation.party_size}</strong> on
        <strong>${reservation.reservation_date}</strong> at <strong>${reservation.reservation_time}</strong> is confirmed.</p>
-       <p>See you soon! Questions? Call us at ${restaurantPhone}.</p>`
+       <p>See you soon! Questions? Call us at ${restaurantPhone}.</p>
+       <p style="margin-top:20px;font-size:.9em;">Need to cancel? <a href="${cancelUrl}">Cancel this reservation</a>.</p>`
     );
     return { statusCode: 200, body: JSON.stringify({ ok: true }) };
   }

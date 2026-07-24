@@ -1,12 +1,5 @@
-function page(title, bodyHtml) {
-  return `<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>${title}</title>
-<style>
-  body{font-family:sans-serif;background:#fdf8f2;color:#241512;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;padding:20px;}
-  .card{background:#fff;padding:40px;border-radius:14px;box-shadow:0 10px 30px rgba(36,21,18,.12);max-width:420px;text-align:center;}
-  h1{color:#7a1f2b;font-size:1.4rem;margin-top:0;}
-</style></head><body><div class="card">${bodyHtml}</div></body></html>`;
-}
+const crypto = require('crypto');
+const { page } = require('./_lib/html');
 
 exports.handler = async (event) => {
   if (event.httpMethod !== 'POST') {
@@ -26,7 +19,8 @@ exports.handler = async (event) => {
     RESEND_API_KEY,
     RESEND_FROM,
     RESTAURANT_NAME,
-    RESTAURANT_PHONE
+    RESTAURANT_PHONE,
+    SITE_URL
   } = process.env;
 
   const sbHeaders = {
@@ -49,6 +43,7 @@ exports.handler = async (event) => {
 
   const restaurantName = RESTAURANT_NAME || 'Maison Thai';
   const restaurantPhone = RESTAURANT_PHONE || '+33 7 55 41 75 84';
+  const base = (SITE_URL || '').replace(/\/$/, '');
 
   async function sendEmail(subject, html) {
     if (!RESEND_API_KEY) return;
@@ -65,6 +60,7 @@ exports.handler = async (event) => {
   }
 
   if (decision === 'accept') {
+    const cancelToken = crypto.randomBytes(24).toString('hex');
     await fetch(`${SUPABASE_URL}/rest/v1/reservations?guest_token=eq.${token}`, {
       method: 'PATCH',
       headers: { ...sbHeaders, Prefer: 'return=minimal' },
@@ -72,15 +68,18 @@ exports.handler = async (event) => {
         status: 'approved',
         reservation_date: reservation.proposed_date,
         reservation_time: reservation.proposed_time,
-        guest_token: null
+        guest_token: null,
+        cancel_token: cancelToken
       })
     });
+    const cancelUrl = `${base}/.netlify/functions/guest-cancel?token=${cancelToken}`;
     await sendEmail(
       `Your table is confirmed — ${restaurantName}`,
       `<p>Hi ${reservation.name},</p>
        <p>Your table for <strong>${reservation.party_size}</strong> on
        <strong>${reservation.proposed_date}</strong> at <strong>${reservation.proposed_time}</strong> is confirmed.</p>
-       <p>See you soon! Questions? Call us at ${restaurantPhone}.</p>`
+       <p>See you soon! Questions? Call us at ${restaurantPhone}.</p>
+       <p style="margin-top:20px;font-size:.9em;">Need to cancel? <a href="${cancelUrl}">Cancel this reservation</a>.</p>`
     );
     return {
       statusCode: 200,

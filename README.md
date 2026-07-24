@@ -51,6 +51,12 @@ transactional email, 100/day).
    actually finalizes it (`guest-confirm.js`). This two-step design stops
    email link-scanners/prefetchers from silently accepting or declining on
    the guest's behalf.
+5. Every confirmed reservation's email includes a **"Cancel this reservation"**
+   link for the guest. It works the same two-step way (`guest-cancel.js` →
+   confirm page → `guest-cancel-confirm.js`), marks the reservation
+   `cancelled`, and emails the guest an acknowledgment. Staff cannot cancel a
+   reservation from the dashboard — cancellation is guest-initiated only;
+   staff see the `cancelled` status update automatically once it happens.
 
 **One-time setup (you'll create two free accounts — never send me the keys,
 paste them straight into Netlify's own environment variables):**
