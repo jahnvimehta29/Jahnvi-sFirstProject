@@ -50,7 +50,7 @@ h2{font-size:2.1rem;margin-bottom:12px;}
 /* HERO */
 .hero{
   position:relative;min-height:100vh;display:flex;align-items:center;
-  background:linear-gradient(rgba(20,10,10,.55),rgba(20,10,10,.65)),url('https://picsum.photos/seed/maisonthai-hero/1600/1000') center/cover;
+  background:linear-gradient(135deg,#2d0a10,var(--maroon) 55%,#2d0a10);
   color:#fff;text-align:center;
 }
 .hero-content{padding-top:76px;}
@@ -66,6 +66,12 @@ h2{font-size:2.1rem;margin-bottom:12px;}
 /* ABOUT */
 .about{display:grid;grid-template-columns:1fr 1fr;gap:60px;align-items:center;padding:100px 24px;}
 .about-img img{border-radius:var(--radius);box-shadow:var(--shadow);}
+.about-placeholder{
+  border-radius:var(--radius);box-shadow:var(--shadow);min-height:420px;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;
+  background:linear-gradient(135deg,var(--cream),#f3e6d3);color:var(--maroon);font-size:3rem;
+}
+.about-placeholder span{font-size:1rem;color:var(--gray);font-weight:600;}
 .about-list li{margin-top:14px;display:flex;gap:10px;align-items:flex-start;color:var(--dark);}
 .about-list i{color:var(--maroon);margin-top:4px;}
 
@@ -86,6 +92,11 @@ h2{font-size:2.1rem;margin-bottom:12px;}
 .gallery-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;}
 .gallery-grid img{border-radius:10px;height:260px;object-fit:cover;cursor:pointer;transition:.25s;}
 .gallery-grid img:hover{opacity:.85;transform:scale(1.02);}
+.gallery-placeholder{
+  height:260px;border-radius:10px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;
+  background:linear-gradient(135deg,var(--cream),#f3e6d3);color:var(--maroon);font-size:2.2rem;
+}
+.gallery-placeholder span{font-size:.85rem;color:var(--gray);font-weight:600;}
 
 .lightbox{position:fixed;inset:0;background:rgba(10,5,5,.9);display:none;align-items:center;justify-content:center;z-index:1200;padding:30px;}
 .lightbox.active{display:flex;}
