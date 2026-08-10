@@ -6,7 +6,7 @@ no backend required.
 
 ## What's included
 
-- **Hero, About, Menu, Gallery, Reviews, Reservation, Contact** sections
+- **Hero, About, Menu, Reviews, Reservation, Contact** sections
 - **Real reservation backend** — guest requests are stored in a database;
   staff approve, reject, or counter-offer a different time from a
   password-protected dashboard (`/admin.html`); the guest is emailed

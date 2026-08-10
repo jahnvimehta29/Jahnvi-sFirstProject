@@ -4,19 +4,6 @@ const navLinks = document.getElementById('navLinks');
 navToggle.addEventListener('click', () => navLinks.classList.toggle('open'));
 navLinks.querySelectorAll('a').forEach(a => a.addEventListener('click', () => navLinks.classList.remove('open')));
 
-// ===== Gallery lightbox =====
-const lightbox = document.getElementById('lightbox');
-const lightboxImg = document.getElementById('lightboxImg');
-document.getElementById('galleryGrid').addEventListener('click', (e) => {
-  if (e.target.tagName === 'IMG') {
-    lightboxImg.src = e.target.src;
-    lightboxImg.alt = e.target.alt;
-    lightbox.classList.add('active');
-  }
-});
-document.getElementById('lightboxClose').addEventListener('click', () => lightbox.classList.remove('active'));
-lightbox.addEventListener('click', (e) => { if (e.target === lightbox) lightbox.classList.remove('active'); });
-
 // ===== Reservation form =====
 // Submits to the Netlify Function (create-reservation), which stores the
 // request in Supabase as "pending". Staff approve/reject/counter-offer from
