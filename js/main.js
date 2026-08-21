@@ -5,7 +5,7 @@ navToggle.addEventListener('click', () => navLinks.classList.toggle('open'));
 navLinks.querySelectorAll('a').forEach(a => a.addEventListener('click', () => navLinks.classList.remove('open')));
 
 // ===== Scroll-reveal animations =====
-const revealSelectors = '.torn-card, .menu-card, .review-card, .reservation-info, .reservation-form, .contact-details, .contact-map';
+const revealSelectors = '.story-medallion, .story-text, .menu-card, .review-card, .reservation-info, .reservation-form, .contact-details, .contact-map';
 const revealEls = document.querySelectorAll(revealSelectors);
 revealEls.forEach((el) => el.classList.add('reveal'));
 
