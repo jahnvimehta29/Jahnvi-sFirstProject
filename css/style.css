@@ -92,28 +92,19 @@ h2{font-size:2.5rem;margin-bottom:14px;}
 .sticky-bar-name span{color:var(--gold);}
 .sticky-bar .btn{padding:10px 22px;font-size:.88rem;}
 
-/* STORY - sunburst medallion */
-.story{padding:130px 0;background:var(--cream);overflow:hidden;}
-.story-layout{display:grid;grid-template-columns:340px 1fr;gap:70px;align-items:center;}
-.story-medallion{position:relative;width:320px;height:320px;margin:0 auto;display:flex;align-items:center;justify-content:center;}
-@keyframes spin{to{transform:rotate(360deg);}}
-.medallion-sunburst{
-  position:absolute;inset:-36px;border-radius:50%;
-  background:repeating-conic-gradient(var(--gold) 0deg 9deg, transparent 9deg 18deg);
-  opacity:.4;animation:spin 60s linear infinite;
+/* STORY - warm typographic statement, no imagery */
+.story{padding:140px 0;background:linear-gradient(180deg,var(--cream),#f6ead6);}
+.story-inner{max-width:680px;margin:0 auto;text-align:center;}
+.story-subtitle{color:var(--maroon);letter-spacing:2px;font-size:.78rem;font-weight:600;margin-bottom:30px;text-transform:uppercase;}
+.story-rule{
+  border:none;width:56px;height:2px;background:var(--gold);margin:0 auto 40px;
 }
-.medallion-ring{
-  position:relative;width:280px;height:280px;border-radius:50%;overflow:hidden;
-  border:6px solid var(--cream);box-shadow:0 0 0 3px var(--gold),0 20px 45px rgba(90,22,32,.28);
-}
-.medallion-ring img{width:100%;height:100%;object-fit:cover;}
-.story-subtitle{color:var(--maroon);letter-spacing:2px;font-size:.78rem;font-weight:600;margin-bottom:22px;text-transform:uppercase;}
 .story-quote{
   font-family:'Playfair Display',serif;font-style:italic;font-weight:600;
-  font-size:1.6rem;line-height:1.4;color:var(--maroon-dark);margin:0 0 24px;
+  font-size:1.85rem;line-height:1.45;color:var(--maroon-dark);margin:0 auto 28px;
 }
-.story-body{color:var(--gray);font-size:1.05rem;margin-bottom:30px;}
-.story-tags{display:flex;flex-wrap:wrap;gap:10px 26px;}
+.story-body{color:var(--gray);font-size:1.05rem;margin-bottom:34px;}
+.story-tags{display:flex;flex-wrap:wrap;justify-content:center;gap:10px 30px;}
 .story-tags span{font-size:.88rem;color:var(--dark);white-space:nowrap;}
 .story-tags i{color:var(--maroon);margin-right:8px;}
 
@@ -203,7 +194,6 @@ h2{font-size:2.5rem;margin-bottom:14px;}
   .hero-photo{min-height:320px;position:relative;}
   .hero-photo img{position:absolute;}
   .hero-content{padding:50px 30px;}
-  .story-layout{grid-template-columns:1fr;text-align:center;}
   .story-tags{justify-content:center;}
 }
 @media (max-width:768px){
