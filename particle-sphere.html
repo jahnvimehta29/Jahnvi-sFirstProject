@@ -77,6 +77,29 @@
     flex-direction: column; gap: 14px; color: #ddd; font-family: system-ui, sans-serif;
     background: #05060a; z-index: 10; text-align: center; padding: 20px; font-size: 14px;
   }
+
+  #intro-overlay {
+    position: fixed; inset: 0; z-index: 50; background: rgba(5,6,10,.94);
+    display: flex; align-items: center; justify-content: center; padding: 24px;
+    font-family: system-ui, -apple-system, sans-serif;
+  }
+  .intro-card {
+    max-width: 440px; background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.12);
+    border-radius: 16px; padding: 36px 32px; text-align: center; color: #eae8e2;
+    box-shadow: 0 20px 60px rgba(0,0,0,.5);
+  }
+  .intro-eyebrow {
+    color: #6cf7c2; text-transform: uppercase; letter-spacing: 2px; font-size: 11px;
+    font-weight: 600; margin: 0 0 10px;
+  }
+  .intro-card h2 {
+    font-family: Georgia, 'Times New Roman', serif; font-weight: 400; font-size: 22px;
+    margin: 0 0 14px; line-height: 1.35; color: #f3f1ec;
+  }
+  .intro-body { font-size: 14px; color: #b8b6b0; margin: 0 0 10px; line-height: 1.55; }
+  .intro-list { list-style: none; padding: 0; margin: 18px 0; text-align: left; display: inline-block; }
+  .intro-list li { font-size: 13px; color: #d8d6d0; margin-bottom: 9px; }
+  #introStartBtn { font-size: 14px; padding: 12px 28px; }
   .spinner {
     width: 34px; height: 34px; border: 3px solid rgba(255,255,255,.15);
     border-top-color: #6cf7c2; border-radius: 50%; animation: spin 0.9s linear infinite;
@@ -93,7 +116,23 @@
 </head>
 <body>
 
-<div id="loading">
+<div id="intro-overlay">
+  <div class="intro-card">
+    <p class="intro-eyebrow">Maison Thai</p>
+    <h2>Enjoying the Thai cuisine so far? 🌶️</h2>
+    <p class="intro-body">While you wait for your food (or just for the fun of it) — let's play with something a little different.</p>
+    <ul class="intro-list">
+      <li>✋ Move your hand — drag &amp; spin the sphere</li>
+      <li>🤏 Pinch and hold — charge up a burst, then let go</li>
+      <li>🙌 Show two hands — spread to grow it, bring together to shrink it</li>
+      <li>🖐️ Change how many fingers you hold up — shifts the colors</li>
+    </ul>
+    <p class="intro-body" style="margin-bottom:22px;">Show your hand to the camera and move your fingers — watch the magic happen ✨</p>
+    <button id="introStartBtn" class="pill-btn active">Let's Play →</button>
+  </div>
+</div>
+
+<div id="loading" style="display:none;">
   <div class="spinner"></div>
   <div>Loading hand tracking &amp; starting camera…<br><small style="color:#888">Allow camera access when prompted.</small></div>
 </div>
@@ -415,11 +454,18 @@ function onHandResults(results) {
    ============================================================ */
 const videoEl = document.getElementById('preview-video');
 
-if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-  showError('This browser does not support camera access. Try Chrome, Edge, or Firefox over HTTPS (or localhost).');
-} else if (!window.Hands || !window.Camera) {
-  showError('MediaPipe Hands failed to load (check your internet connection) and reload the page.');
-} else {
+// Camera/tracking only starts once the user dismisses the intro card below -
+// requesting camera permission right on page load (before anyone has read
+// what the page even does) is a jarring, easily-declined experience.
+function startHandTracking() {
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    showError('This browser does not support camera access. Try Chrome, Edge, or Firefox over HTTPS (or localhost).');
+    return;
+  }
+  if (!window.Hands || !window.Camera) {
+    showError('MediaPipe Hands failed to load (check your internet connection) and reload the page.');
+    return;
+  }
   try {
     const hands = new window.Hands({
       locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`,
@@ -446,6 +492,12 @@ if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
     showError('Hand tracking failed to start: ' + err.message);
   }
 }
+
+document.getElementById('introStartBtn').addEventListener('click', () => {
+  document.getElementById('intro-overlay').style.display = 'none';
+  document.getElementById('loading').style.display = 'flex';
+  startHandTracking();
+});
 
 /* ============================================================
    FULLSCREEN WEBCAM BACKGROUND TOGGLE
