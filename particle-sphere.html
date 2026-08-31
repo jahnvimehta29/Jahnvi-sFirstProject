@@ -112,6 +112,15 @@
     font-family: system-ui, sans-serif; font-size: 13px; display: none;
     max-width: 80vw; text-align: center; z-index: 20;
   }
+
+  #idle-hint {
+    position: fixed; bottom: 90px; left: 50%; transform: translateX(-50%) translateY(10px);
+    font-family: system-ui, sans-serif; font-size: 13px; letter-spacing: .5px;
+    color: #cfcdc6; background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.14);
+    padding: 8px 18px; border-radius: 30px; opacity: 0; transition: opacity .6s ease, transform .6s ease;
+    pointer-events: none; z-index: 4;
+  }
+  #idle-hint.visible { opacity: 1; transform: translateX(-50%) translateY(0); }
 </style>
 </head>
 <body>
@@ -126,11 +135,14 @@
       <li>🤏 Pinch and hold — charge up a burst, then let go</li>
       <li>🙌 Show two hands — spread to grow it, bring together to shrink it</li>
       <li>🖐️ Change how many fingers you hold up — shifts the colors</li>
+      <li>👍 Thumbs up — morph the particles into our name</li>
     </ul>
     <p class="intro-body" style="margin-bottom:22px;">Show your hand to the camera and move your fingers — watch the magic happen ✨</p>
     <button id="introStartBtn" class="pill-btn active">Let's Play →</button>
   </div>
 </div>
+
+<div id="idle-hint">✨ Come play — show your hand to the camera ✨</div>
 
 <div id="loading" style="display:none;">
   <div class="spinner"></div>
@@ -141,7 +153,7 @@
 
 <div id="title">
   <h1>Particle Field</h1>
-  <p>One hand — drag to move &amp; spin. Pinch and hold — charge a burst. Two hands — spread to grow, close to shrink. Finger count — shifts color.</p>
+  <p>One hand — drag to move &amp; spin. Pinch and hold — charge a burst. Two hands — spread to grow, close to shrink. Finger count — shifts color. Thumbs up — morphs into text.</p>
   <div id="status-line" class="idle">No hand detected</div>
 </div>
 
@@ -208,6 +220,11 @@ const ROT_SENSITIVITY = 4.2;
 const SCALE_SMOOTH = 0.08;
 const SCALE_MIN = 0.55, SCALE_MAX = 2.1;
 
+const MORPH_TEXT = 'MAISON THAI';
+const MORPH_SMOOTH = 0.06;
+const THUMBS_UP_COOLDOWN_MS = 1200;
+const IDLE_INVITE_MS = 6000;
+
 const FINGER_COLORS = [
   null,                       // 0 fingers -> keep base gradient, no tint
   new THREE.Color(0x35e6ff),  // 1
@@ -226,7 +243,8 @@ renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 renderer.setSize(window.innerWidth, window.innerHeight);
 
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x05060a);
+// background is left null on purpose: the trail-fade render pass below paints
+// the backdrop instead of a hard clear, which is what produces the trail effect
 
 const camera = new THREE.PerspectiveCamera(55, window.innerWidth / window.innerHeight, 0.1, 100);
 camera.position.set(0, 0, 6.5);
@@ -250,6 +268,31 @@ function makeParticleTexture() {
   ctx.fillStyle = g;
   ctx.fillRect(0, 0, size, size);
   return new THREE.CanvasTexture(c);
+}
+
+/* Samples a text string into a cloud of 2D points by rasterizing it to an
+   offscreen canvas and picking every opaque-enough pixel (on a grid, so the
+   point cloud stays even rather than pixel-dense). Used to build the morph
+   target shape for the thumbs-up gesture. */
+function sampleTextPoints(text, canvasW, canvasH, fontPx, step) {
+  const c = document.createElement('canvas');
+  c.width = canvasW; c.height = canvasH;
+  const ctx = c.getContext('2d');
+  ctx.fillStyle = '#000';
+  ctx.fillRect(0, 0, canvasW, canvasH);
+  ctx.fillStyle = '#fff';
+  ctx.font = `bold ${fontPx}px Georgia, 'Times New Roman', serif`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(text, canvasW / 2, canvasH / 2);
+  const data = ctx.getImageData(0, 0, canvasW, canvasH).data;
+  const points = [];
+  for (let y = 0; y < canvasH; y += step) {
+    for (let x = 0; x < canvasW; x += step) {
+      if (data[(y * canvasW + x) * 4 + 3] > 128) points.push({ x, y });
+    }
+  }
+  return points;
 }
 
 /* ---- Build the particle sphere using a Fibonacci (even) distribution ---- */
@@ -300,6 +343,26 @@ const sphereGroup = new THREE.Group();
 sphereGroup.add(points);
 scene.add(sphereGroup);
 
+/* ---- Morph target: the same 3000 particles rearranged to spell MORPH_TEXT ---- */
+const morphPositions = new Float32Array(PARTICLE_COUNT * 3);
+(function buildMorphPositions() {
+  const canvasW = 900, canvasH = 220;
+  const textPoints = sampleTextPoints(MORPH_TEXT, canvasW, canvasH, 100, 3);
+  if (textPoints.length === 0) {
+    morphPositions.set(homePositions); // font failed to rasterize - fall back to the sphere shape
+    return;
+  }
+  const worldWidth = 5.6;
+  const scale = worldWidth / canvasW;
+  for (let i = 0; i < PARTICLE_COUNT; i++) {
+    const p = textPoints[i % textPoints.length];
+    const idx = i * 3;
+    morphPositions[idx]     = (p.x - canvasW / 2) * scale;
+    morphPositions[idx + 1] = -(p.y - canvasH / 2) * scale;
+    morphPositions[idx + 2] = (Math.random() - 0.5) * 0.25;
+  }
+})();
+
 /* Explode: injects an outward velocity impulse into every particle, scaled
    by how long the pinch was held (0..1). The spring/damping system in the
    render loop naturally pulls everything back into shape afterwards. */
@@ -320,6 +383,91 @@ function explode(power) {
 }
 
 /* ============================================================
+   AUDIO (synthesized with Web Audio API - no sound files)
+   ============================================================ */
+const AudioEngine = (() => {
+  let ctx = null;
+  let chargeOsc = null, chargeGain = null;
+
+  function ensureCtx() {
+    if (!ctx) ctx = new (window.AudioContext || window.webkitAudioContext)();
+    if (ctx.state === 'suspended') ctx.resume();
+    return ctx;
+  }
+  function chargeStart() {
+    ensureCtx();
+    if (chargeOsc) return;
+    chargeOsc = ctx.createOscillator();
+    chargeGain = ctx.createGain();
+    chargeOsc.type = 'sine';
+    chargeOsc.frequency.value = 140;
+    chargeGain.gain.value = 0.0001;
+    chargeOsc.connect(chargeGain).connect(ctx.destination);
+    chargeOsc.start();
+  }
+  function chargeUpdate(level) {
+    if (!chargeOsc) return;
+    chargeOsc.frequency.setTargetAtTime(140 + level * 520, ctx.currentTime, 0.05);
+    chargeGain.gain.setTargetAtTime(0.05 + level * 0.12, ctx.currentTime, 0.05);
+  }
+  function chargeStop() {
+    if (!chargeOsc) return;
+    const osc = chargeOsc, gain = chargeGain;
+    chargeOsc = null; chargeGain = null;
+    gain.gain.setTargetAtTime(0.0001, ctx.currentTime, 0.04);
+    osc.stop(ctx.currentTime + 0.2);
+  }
+  function explosion(power) {
+    ensureCtx();
+    const dur = 0.5;
+    const bufferSize = Math.floor(ctx.sampleRate * dur);
+    const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < bufferSize; i++) data[i] = (Math.random() * 2 - 1) * (1 - i / bufferSize);
+    const noise = ctx.createBufferSource();
+    noise.buffer = buffer;
+    const filter = ctx.createBiquadFilter();
+    filter.type = 'lowpass';
+    filter.frequency.value = 400 + power * 3000;
+    const gain = ctx.createGain();
+    gain.gain.value = 0.22 + power * 0.35;
+    noise.connect(filter).connect(gain).connect(ctx.destination);
+    noise.start();
+  }
+  function chime() {
+    ensureCtx();
+    [523.25, 659.25, 784.0].forEach((freq, i) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.value = freq;
+      const t = ctx.currentTime + i * 0.08;
+      gain.gain.setValueAtTime(0.0001, t);
+      gain.gain.linearRampToValueAtTime(0.12, t + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.5);
+      osc.connect(gain).connect(ctx.destination);
+      osc.start(t);
+      osc.stop(t + 0.55);
+    });
+  }
+  function pop() {
+    ensureCtx();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'triangle';
+    osc.frequency.setValueAtTime(200, ctx.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(760, ctx.currentTime + 0.15);
+    gain.gain.setValueAtTime(0.2, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.2);
+    osc.connect(gain).connect(ctx.destination);
+    osc.start();
+    osc.stop(ctx.currentTime + 0.22);
+  }
+
+  return { ensureCtx, chargeStart, chargeUpdate, chargeStop, explosion, chime, pop };
+})();
+
+/* ============================================================
    HAND TRACKING STATE
    ============================================================ */
 let numHands = 0;
@@ -337,12 +485,23 @@ let fingerCount = 0;
 
 // two-hand scale
 let targetScale = 1;
+let baseScale = 1;
+
+// thumbs-up shape morph
+let morphActive = false;
+let morphBlend = 0;
+let thumbsUpHeld = false;
+let lastThumbsUpToggle = 0;
+
+// idle "come play" invitation
+let lastHandSeenTime = performance.now();
 
 const statusEl = document.getElementById('status-line');
 const loadingEl = document.getElementById('loading');
 const errorBanner = document.getElementById('error-banner');
 const chargeRingWrap = document.getElementById('charge-ring-wrap');
 const chargeRingFg = document.getElementById('charge-ring-fg');
+const idleHintEl = document.getElementById('idle-hint');
 const RING_CIRCUMFERENCE = 2 * Math.PI * 47;
 
 function showError(msg) {
@@ -359,15 +518,34 @@ function landmarkDist(a, b) {
 /* Rough, rotation-tolerant heuristic: a finger counts as "extended" if its
    tip sits noticeably farther from the wrist than its base knuckle does.
    Not anatomically perfect, but good enough for a live demo. */
-function countExtendedFingers(lm) {
+function getFingerStates(lm) {
   const wrist = lm[0];
-  let count = 0;
   const fingers = [[8, 5], [12, 9], [16, 13], [20, 17]];
-  fingers.forEach(([tipIdx, mcpIdx]) => {
-    if (landmarkDist(lm[tipIdx], wrist) > landmarkDist(lm[mcpIdx], wrist) * 1.15) count++;
-  });
-  if (landmarkDist(lm[4], lm[17]) > landmarkDist(lm[2], lm[17]) * 1.05) count++;
-  return count;
+  const extended = fingers.map(([tipIdx, mcpIdx]) =>
+    landmarkDist(lm[tipIdx], wrist) > landmarkDist(lm[mcpIdx], wrist) * 1.15);
+  const thumbOut = landmarkDist(lm[4], lm[17]) > landmarkDist(lm[2], lm[17]) * 1.05;
+  return { extended, thumbOut };
+}
+
+function countExtendedFingers(states) {
+  return states.extended.filter(Boolean).length + (states.thumbOut ? 1 : 0);
+}
+
+/* Thumbs up: thumb splayed out and pointing above the wrist, while the
+   other four fingers are curled into the palm. */
+function isThumbsUp(lm, states) {
+  const othersCurled = states.extended.every((e) => !e);
+  return states.thumbOut && othersCurled && lm[4].y < lm[0].y - 0.05;
+}
+
+function handleThumbsUp(isUp) {
+  const now = performance.now();
+  if (isUp && !thumbsUpHeld && now - lastThumbsUpToggle > THUMBS_UP_COOLDOWN_MS) {
+    lastThumbsUpToggle = now;
+    morphActive = !morphActive;
+    AudioEngine.pop();
+  }
+  thumbsUpHeld = isUp;
 }
 
 function mapHandToPlane(lm9) {
@@ -379,6 +557,7 @@ function mapHandToPlane(lm9) {
 
 function onHandResults(results) {
   loadingEl.style.display = 'none';
+  const prevMode = mode;
 
   const pCanvas = document.getElementById('preview-canvas');
   const pCtx = pCanvas.getContext('2d');
@@ -388,6 +567,7 @@ function onHandResults(results) {
 
   const hands = results.multiHandLandmarks || [];
   numHands = hands.length;
+  if (numHands > 0) lastHandSeenTime = performance.now();
 
   if (window.drawConnectors && window.HAND_CONNECTIONS) {
     hands.forEach((lm) => {
@@ -418,16 +598,24 @@ function onHandResults(results) {
 
     if (nowPinching && !isPinching) {
       pinchStartTime = performance.now();
+      AudioEngine.chargeStart();
     }
     if (nowPinching) {
       chargeLevel = Math.min(1, (performance.now() - pinchStartTime) / CHARGE_DURATION_MS);
+      AudioEngine.chargeUpdate(chargeLevel);
     } else if (isPinching && !nowPinching) {
-      if (chargeLevel > MIN_CHARGE_TO_FIRE) explode(chargeLevel);
+      if (chargeLevel > MIN_CHARGE_TO_FIRE) {
+        explode(chargeLevel);
+        AudioEngine.explosion(chargeLevel);
+      }
+      AudioEngine.chargeStop();
       chargeLevel = 0;
     }
     isPinching = nowPinching;
 
-    fingerCount = countExtendedFingers(lm);
+    const fingerStates = getFingerStates(lm);
+    fingerCount = countExtendedFingers(fingerStates);
+    handleThumbsUp(isThumbsUp(lm, fingerStates));
   } else if (numHands === 2) {
     mode = 'two';
     prevHandNX = null; prevHandNY = null; // avoid a rotation jump when dropping back to 1 hand later
@@ -440,12 +628,15 @@ function onHandResults(results) {
   } else {
     mode = 'idle';
     prevHandNX = null; prevHandNY = null;
-    if (isPinching) { isPinching = false; chargeLevel = 0; }
+    if (isPinching) { AudioEngine.chargeStop(); isPinching = false; chargeLevel = 0; }
+    thumbsUpHeld = false;
   }
+
+  if (mode === 'two' && prevMode !== 'two') AudioEngine.chime();
 
   statusEl.className = mode;
   statusEl.textContent = mode === 'idle' ? 'No hand detected'
-    : mode === 'single' ? `Tracking 1 hand · ${fingerCount} finger${fingerCount === 1 ? '' : 's'}`
+    : mode === 'single' ? `Tracking 1 hand · ${fingerCount} finger${fingerCount === 1 ? '' : 's'}${morphActive ? ' · morphed' : ''}`
     : 'Tracking 2 hands · resizing';
 }
 
@@ -496,6 +687,7 @@ function startHandTracking() {
 document.getElementById('introStartBtn').addEventListener('click', () => {
   document.getElementById('intro-overlay').style.display = 'none';
   document.getElementById('loading').style.display = 'flex';
+  AudioEngine.ensureCtx(); // must be created from a user gesture for autoplay policies
   startHandTracking();
 });
 
@@ -509,8 +701,27 @@ webcamBgBtn.addEventListener('click', () => {
   document.body.classList.toggle('webcam-bg-on', webcamBgOn);
   webcamBgBtn.classList.toggle('active', webcamBgOn);
   webcamBgBtn.textContent = webcamBgOn ? 'Camera Background: On' : 'Camera Background';
-  scene.background = webcamBgOn ? null : new THREE.Color(0x05060a);
+  // scene.background stays null always - the render loop below fully clears
+  // to transparent when the webcam background is on, and paints a fading
+  // trail quad otherwise (see ANIMATION LOOP).
 });
+
+/* ============================================================
+   TRAIL-FADE RENDER PASS
+   Rather than clearing the canvas each frame, we paint a mostly-opaque quad
+   over the previous frame. That leaves a faint afterimage of every particle,
+   which reads as a motion trail. Disabled when the webcam background is on,
+   since a translucent quad would otherwise dim the live video underneath.
+   ============================================================ */
+renderer.autoClear = false;
+const trailScene = new THREE.Scene();
+const trailCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+const trailMaterial = new THREE.MeshBasicMaterial({
+  color: 0x05060a, transparent: true, opacity: 0.16, depthTest: false, depthWrite: false,
+});
+trailScene.add(new THREE.Mesh(new THREE.PlaneGeometry(2, 2), trailMaterial));
+renderer.setClearColor(0x05060a, 1);
+renderer.clear();
 
 /* ============================================================
    ANIMATION LOOP
@@ -523,7 +734,10 @@ const smoothedFingerColor = new THREE.Color(0x6cf7c2);
 function animate() {
   requestAnimationFrame(animate);
 
-  /* --- per-particle spring/explosion physics --- */
+  /* --- shape morph blend (sphere <-> "MAISON THAI" text) --- */
+  morphBlend += ((morphActive ? 1 : 0) - morphBlend) * MORPH_SMOOTH;
+
+  /* --- per-particle spring/explosion physics, blended toward the morph target --- */
   for (let i = 0; i < PARTICLE_COUNT; i++) {
     const ix = i * 3, iy = ix + 1, iz = ix + 2;
     const ax = -SPRING_K * offsets[ix];
@@ -536,22 +750,34 @@ function animate() {
     offsets[iy] += velocities[iy];
     offsets[iz] += velocities[iz];
 
-    currentPositions[ix] = homePositions[ix] + offsets[ix];
-    currentPositions[iy] = homePositions[iy] + offsets[iy];
-    currentPositions[iz] = homePositions[iz] + offsets[iz];
+    const bx = homePositions[ix] + (morphPositions[ix] - homePositions[ix]) * morphBlend;
+    const by = homePositions[iy] + (morphPositions[iy] - homePositions[iy]) * morphBlend;
+    const bz = homePositions[iz] + (morphPositions[iz] - homePositions[iz]) * morphBlend;
+    currentPositions[ix] = bx + offsets[ix];
+    currentPositions[iy] = by + offsets[iy];
+    currentPositions[iz] = bz + offsets[iz];
   }
   posAttr.needsUpdate = true;
+
+  /* --- idle "come play" invitation once nobody's hand has been seen for a while --- */
+  const idleFor = performance.now() - lastHandSeenTime;
+  const inviting = mode === 'idle' && idleFor > IDLE_INVITE_MS;
+  idleHintEl.classList.toggle('visible', inviting);
 
   /* --- group transform: move/rotate (1 hand) or scale (2 hands) or idle --- */
   if (mode === 'single') {
     sphereGroup.position.lerp(singleTargetPos, MOVE_SMOOTH);
+    sphereGroup.rotation.z *= 0.9;
   } else {
     sphereGroup.position.lerp(new THREE.Vector3(0, 0, 0), MOVE_SMOOTH * 0.6);
     sphereGroup.rotation.y += 0.0016; // idle drift
+    sphereGroup.rotation.z = inviting ? Math.sin(performance.now() * 0.0016) * 0.1 : sphereGroup.rotation.z * 0.9;
   }
-  const desiredScale = mode === 'two' ? targetScale : sphereGroup.scale.x;
-  const newScale = sphereGroup.scale.x + (desiredScale - sphereGroup.scale.x) * SCALE_SMOOTH;
-  sphereGroup.scale.set(newScale, newScale, newScale);
+  const desiredScale = mode === 'two' ? targetScale : baseScale;
+  baseScale += (desiredScale - baseScale) * SCALE_SMOOTH;
+  const invitePulse = inviting ? 1 + Math.sin(performance.now() * 0.002) * 0.06 : 1;
+  const finalScale = baseScale * invitePulse;
+  sphereGroup.scale.set(finalScale, finalScale, finalScale);
 
   /* --- finger-count color tint --- */
   const target = mode === 'single' ? FINGER_COLORS[fingerCount] : null;
@@ -577,6 +803,12 @@ function animate() {
     chargeRingWrap.classList.remove('visible');
   }
 
+  if (webcamBgOn) {
+    renderer.clear(true, true, true); // fully transparent so the live camera feed shows through
+  } else {
+    renderer.clearDepth();
+    renderer.render(trailScene, trailCamera); // fades the previous frame instead of erasing it
+  }
   renderer.render(scene, camera);
 }
 animate();
